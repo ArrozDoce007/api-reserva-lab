@@ -20,6 +20,11 @@ def create_connection():
         print(f"Erro ao conectar ao banco de dados: {e}")
     return connection
 
+@app.route('/', methods=['GET'])
+def helo():
+    html = "hello"
+    return html
+
 # Rota para obter todos os contatos
 @app.route('/contatos', methods=['GET'])
 def get_contatos():
