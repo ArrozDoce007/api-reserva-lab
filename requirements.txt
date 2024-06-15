@@ -2,3 +2,5 @@ Flask
 Flask-Cors
 mysql-connector-python
 gunicorn
+request
+jsonify
