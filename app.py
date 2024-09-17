@@ -11,7 +11,7 @@ try:
         host="localhost",
         user="root",
         password="2004",
-        database="lab_reservation_db"
+        database="lab_reservation"
     )
     cursor = db.cursor(dictionary=True)
 except mysql.connector.Error as err:
