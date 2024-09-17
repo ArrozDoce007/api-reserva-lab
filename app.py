@@ -10,7 +10,7 @@ try:
     db = mysql.connector.connect(
         host="localhost",
         user="root",
-        password="2004",
+        password="lab_reserva",
         database="lab_reservation"
     )
     cursor = db.cursor(dictionary=True)
