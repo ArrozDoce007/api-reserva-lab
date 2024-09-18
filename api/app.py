@@ -20,20 +20,14 @@ except mysql.connector.Error as err:
     print(f"Erro ao conectar ao banco de dados: {err}")
     exit(1)
 
+# Rota data e hora
 @app.route('/time/brazilia', methods=['GET'])
 def get_brasilia_time():
     try:
-        # Define o fuso horário de Brasília
         brasilia_tz = pytz.timezone('America/Sao_Paulo')
-        
-        # Obtém a data e hora atual no fuso horário de Brasília
         brasilia_time = datetime.now(brasilia_tz)
-        
-        # Formata a data e hora como string
         formatted_time = brasilia_time.strftime('%Y-%m-%dT%H:%M:%S')
-        
         return jsonify({'datetime': formatted_time})
-
     except Exception as e:
         print(f"Erro: {e}")
         return jsonify({"error": "Erro ao obter a data e hora atual"}), 500
@@ -62,17 +56,15 @@ def login():
 @app.route('/reserve', methods=['POST'])
 def reservas_lab():
     try:
-        # Recebe os dados do formulário
         data = request.json
         lab_name = data.get('labName')
         date = data.get('date')
         time = data.get('time')
-        time_fim = data.get('time_fim')  # Adiciona o campo time_fim
+        time_fim = data.get('time_fim')
         purpose = data.get('purpose')
         nome = data.get('userName')
         matricula = data.get('userMatricula')
 
-        # Insere a reserva no banco de dados
         insert_query = """
         INSERT INTO reservas (lab_name, date, time, time_fim, purpose, nome, matricula, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -80,8 +72,11 @@ def reservas_lab():
         cursor.execute(insert_query, (lab_name, date, time, time_fim, purpose, nome, matricula, "pendente"))
         db.commit()
 
-        return "", 204
+        # Criar notificação para o usuário
+        notification_message = f"Sua reserva para {lab_name} em {date} foi solicitada e está pendente de aprovação."
+        create_notification(matricula, notification_message)
 
+        return "", 204
     except Exception as e:
         print(f"Erro: {e}")
         return jsonify({"error": "Erro ao processar a reserva"}), 500
@@ -90,13 +85,10 @@ def reservas_lab():
 @app.route('/reserve/status/geral', methods=['GET'])
 def get_reservas_geral():
     try:
-        # Consulta as reservas
         query = "SELECT id, lab_name, date, time, time_fim, purpose, status, nome, matricula FROM reservas"
         cursor.execute(query)
         reservations = cursor.fetchall()
-
         return jsonify(reservations)
-
     except Exception as e:
         print(f"Erro: {e}")
         return jsonify({"error": "Erro ao recuperar as reservas"}), 500
@@ -105,12 +97,10 @@ def get_reservas_geral():
 @app.route('/reserve/status', methods=['GET'])
 def get_reservas_por_matricula():
     try:
-        # Consulta as reservas com os campos necessários, incluindo a matrícula
         query = "SELECT id, lab_name, date, time, time_fim, purpose, status, nome, matricula FROM reservas"
         cursor.execute(query)
         reservations = cursor.fetchall()
 
-        # Formatação das reservas em um formato de lista de dicionários
         reservations_list = []
         for reservation in reservations:
             reservations_list.append({
@@ -121,12 +111,11 @@ def get_reservas_por_matricula():
                 'time_fim': reservation['time_fim'],
                 'purpose': reservation['purpose'],
                 'status': reservation['status'],
-                'user_name': reservation['nome'],  # Renomeando para o front-end
-                'user_matricula': reservation['matricula']  # Renomeando para o front-end
+                'user_name': reservation['nome'],
+                'user_matricula': reservation['matricula']
             })
 
         return jsonify(reservations_list)
-
     except Exception as e:
         print(f"Erro: {e}")
         return jsonify({"error": "Erro ao recuperar as reservas"}), 500
@@ -148,8 +137,14 @@ def update_reservas(id):
         if cursor.rowcount == 0:
             return jsonify({"error": "Reserva não encontrada"}), 404
 
-        return jsonify({"message": "Status da reserva atualizado com sucesso"}), 200
+        # Criar notificação para o usuário
+        cursor.execute("SELECT matricula, lab_name, date FROM reservas WHERE id = %s", (id,))
+        reservation = cursor.fetchone()
+        if reservation:
+            notification_message = f"Sua reserva para {reservation['lab_name']} em {reservation['date']} foi {new_status}."
+            create_notification(reservation['matricula'], notification_message)
 
+        return jsonify({"message": "Status da reserva atualizado com sucesso"}), 200
     except Exception as e:
         return jsonify({"error": f"Erro ao atualizar a reserva: {str(e)}"}), 500
    
@@ -170,10 +165,69 @@ def update_reservas_aprj(id):
         if cursor.rowcount == 0:
             return jsonify({"error": "Reserva não encontrada"}), 404
 
-        return jsonify({"message": "Status da reserva atualizado com sucesso"}), 200
+        # Criar notificação para o usuário
+        cursor.execute("SELECT matricula, lab_name, date FROM reservas WHERE id = %s", (id,))
+        reservation = cursor.fetchone()
+        if reservation:
+            notification_message = f"Sua reserva para {reservation['lab_name']} em {reservation['date']} foi {new_status}."
+            create_notification(reservation['matricula'], notification_message)
 
+        return jsonify({"message": "Status da reserva atualizado com sucesso"}), 200
     except Exception as e:
         return jsonify({"error": f"Erro ao atualizar a reserva: {str(e)}"}), 500
+
+# Função auxiliar para criar notificações
+def create_notification(user_matricula, message):
+    try:
+        insert_query = "INSERT INTO notifications (user_matricula, message) VALUES (%s, %s)"
+        cursor.execute(insert_query, (user_matricula, message))
+        db.commit()
+    except Exception as e:
+        print(f"Erro ao criar notificação: {e}")
+
+# Rota para obter notificações do usuário
+@app.route('/notifications/<string:matricula>', methods=['GET'])
+def get_notifications(matricula):
+    try:
+        query = "SELECT id, message, created_at, is_read FROM notifications WHERE user_matricula = %s ORDER BY created_at DESC"
+        cursor.execute(query, (matricula,))
+        notifications = cursor.fetchall()
+        return jsonify(notifications)
+    except Exception as e:
+        print(f"Erro: {e}")
+        return jsonify({"error": "Erro ao recuperar as notificações"}), 500
+
+# Rota para marcar notificações como lidas
+@app.route('/notifications/read', methods=['POST'])
+def mark_notifications_read():
+    try:
+        data = request.json
+        notification_ids = data.get('notification_ids', [])
+        
+        if not notification_ids:
+            return jsonify({"error": "Nenhum ID de notificação fornecido"}), 400
+
+        update_query = "UPDATE notifications SET is_read = TRUE WHERE id IN (%s)"
+        format_strings = ','.join(['%s'] * len(notification_ids))
+        cursor.execute(update_query % format_strings, tuple(notification_ids))
+        db.commit()
+
+        return jsonify({"message": "Notificações marcadas como lidas"}), 200
+    except Exception as e:
+        print(f"Erro: {e}")
+        return jsonify({"error": "Erro ao marcar notificações como lidas"}), 500
+
+# Rota para limpar todas as notificações do usuário
+@app.route('/notifications/clear/<string:matricula>', methods=['DELETE'])
+def clear_notifications(matricula):
+    try:
+        delete_query = "DELETE FROM notifications WHERE user_matricula = %s"
+        cursor.execute(delete_query, (matricula,))
+        db.commit()
+        return jsonify({"message": "Todas as notificações foram removidas"}), 200
+    except Exception as e:
+        print(f"Erro: {e}")
+        return jsonify({"error": "Erro ao limpar as notificações"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
