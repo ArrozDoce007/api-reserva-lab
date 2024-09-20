@@ -228,46 +228,6 @@ def clear_notifications(matricula):
     except Exception as e:
         print(f"Erro: {e}")
         return jsonify({"error": "Erro ao limpar as notificações"}), 500
-  
-# Rota para concluir as reservas do usuário  
-@app.route('/reserve/concluidos', methods=['PUT'])
-def check_and_update_reservations():
-    try:
-        current_datetime = datetime.now()
-        current_date = current_datetime.strftime('%Y-%m-%d')
-        current_time = current_datetime.strftime('%H:%M')
-
-        select_query = """
-        SELECT id, matricula, lab_name, date, time
-        FROM reservas
-        WHERE status = 'aprovado'
-          AND (date < %s OR (date = %s AND time <= %s))
-        """
-        
-        with db.cursor() as cursor:
-            cursor.execute(select_query, (current_date, current_date, current_time))
-            reservations = cursor.fetchall()
-
-            if not reservations:
-                return jsonify({"message": "Nenhuma reserva foi atualizada para 'concluído'."}), 200
-
-            reservation_ids = [reservation['id'] for reservation in reservations]
-            
-            update_query = "UPDATE reservas SET status = 'concluído' WHERE id IN (%s)" % ','.join(['%s'] * len(reservation_ids))
-            cursor.execute(update_query, tuple(reservation_ids))
-
-            updated_count = cursor.rowcount
-
-            for reservation in reservations:
-                create_notification(reservation['matricula'], f"Sua reserva no laboratório {reservation['lab_name']} foi concluída.")
-
-            db.commit()
-
-        return jsonify({"message": f"{updated_count} reservas foram atualizadas para 'concluído'."}), 200
-
-    except Exception as e:
-        db.rollback()
-        return jsonify({"error": f"Erro ao verificar e atualizar reservas: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
