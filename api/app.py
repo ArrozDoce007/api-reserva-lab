@@ -147,7 +147,7 @@ def update_reservas(id):
         return jsonify({"message": "Status da reserva atualizado com sucesso"}), 200
     except Exception as e:
         return jsonify({"error": f"Erro ao atualizar a reserva: {str(e)}"}), 500
-   
+
 # Rota para aprovar ou rejeitar 
 @app.route('/reserve/pedido/<int:id>', methods=['PUT'])
 def update_reservas_aprj(id):
@@ -179,27 +179,27 @@ def update_reservas_aprj(id):
 # Função auxiliar para criar notificações
 def create_notification(user_matricula, message):
     try:
-        insert_query = "INSERT INTO notifications (user_matricula, message) VALUES (%s, %s)"
+        insert_query = "INSERT INTO notificacoes (user_matricula, message) VALUES (%s, %s)"
         cursor.execute(insert_query, (user_matricula, message))
         db.commit()
     except Exception as e:
         print(f"Erro ao criar notificação: {e}")
 
 # Rota para obter notificações do usuário
-@app.route('/notifications/<string:matricula>', methods=['GET'])
-def get_notifications(matricula):
+@app.route('/notificacoes/<string:matricula>', methods=['GET'])
+def get_notificacoes(matricula):
     try:
-        query = "SELECT id, message, created_at, is_read FROM notifications WHERE user_matricula = %s ORDER BY created_at DESC"
+        query = "SELECT id, message, created_at, is_read FROM notificacoes WHERE user_matricula = %s ORDER BY created_at DESC"
         cursor.execute(query, (matricula,))
-        notifications = cursor.fetchall()
-        return jsonify(notifications)
+        notificacoes = cursor.fetchall()
+        return jsonify(notificacoes)
     except Exception as e:
         print(f"Erro: {e}")
         return jsonify({"error": "Erro ao recuperar as notificações"}), 500
 
 # Rota para marcar notificações como lidas
-@app.route('/notifications/read', methods=['POST'])
-def mark_notifications_read():
+@app.route('/notificacoes/read', methods=['POST'])
+def mark_notificacoes_read():
     try:
         data = request.json
         notification_ids = data.get('notification_ids', [])
@@ -207,7 +207,7 @@ def mark_notifications_read():
         if not notification_ids:
             return jsonify({"error": "Nenhum ID de notificação fornecido"}), 400
 
-        update_query = "UPDATE notifications SET is_read = TRUE WHERE id IN (%s)"
+        update_query = "UPDATE notificacoes SET is_read = TRUE WHERE id IN (%s)"
         format_strings = ','.join(['%s'] * len(notification_ids))
         cursor.execute(update_query % format_strings, tuple(notification_ids))
         db.commit()
@@ -218,10 +218,10 @@ def mark_notifications_read():
         return jsonify({"error": "Erro ao marcar notificações como lidas"}), 500
 
 # Rota para limpar todas as notificações do usuário
-@app.route('/notifications/clear/<string:matricula>', methods=['DELETE'])
-def clear_notifications(matricula):
+@app.route('/notificacoes/clear/<string:matricula>', methods=['DELETE'])
+def clear_notificacoes(matricula):
     try:
-        delete_query = "DELETE FROM notifications WHERE user_matricula = %s"
+        delete_query = "DELETE FROM notificacoes WHERE user_matricula = %s"
         cursor.execute(delete_query, (matricula,))
         db.commit()
         return jsonify({"message": "Todas as notificações foram removidas"}), 200
